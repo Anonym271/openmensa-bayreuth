@@ -1,6 +1,7 @@
 ﻿using HtmlAgilityPack;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -21,7 +22,7 @@ namespace OpenMensa_Bayreuth
                 _ => throw new ArgumentException(),
             };
             var priceText = cell.SelectSingleNode($"./span[@class='{className}']").GetDirectInnerText().Trim();
-            double value = double.Parse(priceText[priceText.IndexOf(' ')..]);
+            double value = double.Parse(priceText[priceText.IndexOf(' ')..].Replace(',', '.'), CultureInfo.InvariantCulture);
             return new Price(role, value);
         }
 
