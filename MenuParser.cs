@@ -19,9 +19,12 @@ namespace OpenMensa_Bayreuth
                 Price.Roles.STUDENT => 1,
                 Price.Roles.EMPLOYEE => 2,
                 Price.Roles.OTHER => 3,
-                _ => throw new ArgumentException(),
+                _ => throw new ArgumentException("Invalid role"),
             };
-            var priceText = cell.SelectSingleNode($"./span[@class='{className}']").GetDirectInnerText().Trim();
+            var node = cell.SelectSingleNode($"./span[@class='{className}']");
+            if (node == null)
+                throw new NodeNotFoundException("Unable to find the price element for role " + role.ToString());
+            var priceText = node.GetDirectInnerText().Trim();
             double value = double.Parse(priceText[priceText.IndexOf(' ')..].Replace(',', '.'), CultureInfo.InvariantCulture);
             return new Price(role, value);
         }
@@ -48,6 +51,8 @@ namespace OpenMensa_Bayreuth
         {
             var html = await MenuGrabber.Get(mensa, day, false);
             var dayNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__hauptgerichte']");
+            if (dayNode == null)
+                return null;
             return ParseDayTable(day, dayNode);
         }
 
@@ -56,28 +61,28 @@ namespace OpenMensa_Bayreuth
             var html = await MenuGrabber.Get(mensa, week, true);
             List<Day> days = new();
 
-            foreach (var dayNode in html.DocumentNode.SelectNodes("//div[@class='tx-bwrkspeiseplan__bar tx-bwrkspeiseplan__hauptgerichte']"))
-            {
+            SelectAndExecuteIfPossible(html.DocumentNode, "//div[@class='tx-bwrkspeiseplan__bar tx-bwrkspeiseplan__hauptgerichte']", dayNode => {
                 DateTime? date = null;
                 var dateCandidates = dayNode.SelectNodes(".//a[contains(@href, 'essen/speiseplaene/bayreuth/')]");
                 if (dateCandidates == null || dateCandidates.Count == 0)
-                    continue;
+                    return;
                 foreach (var dateCandidate in dateCandidates)
                 {
                     var dayUrl = dateCandidate.GetAttributeValue("href", "");
                     if (!string.IsNullOrEmpty(dayUrl))
                     {
-                        var dateString = dayUrl[(dayUrl.LastIndexOf('/') + 1) .. dayUrl.LastIndexOf('.')];
+                        var dateString = dayUrl[(dayUrl.LastIndexOf('/') + 1)..dayUrl.LastIndexOf('.')];
                         date = DateTime.Parse(dateString);
                         break;
                     }
                 }
                 if (date == null)
-                    continue;
+                    return;
                 var day = ParseDayTable((DateTime)date, dayNode);
                 if (day != null)
                     days.Add(day);
-            }
+            });
+
 
             return days.ToArray();
         }
@@ -87,10 +92,7 @@ namespace OpenMensa_Bayreuth
             // Categories (Hauptgerichte, Beilagen, ...)
             List<Category> categories = new();
             var nodes = dayNode.SelectNodes("./div/div/div");
-            if (nodes == null || nodes.Count == 0)
-                return null;
-            foreach (var categoryNode in nodes)
-            {
+            SelectAndExecuteIfPossible(dayNode, "./div/div/div", categoryNode => {
                 string categoryName;
                 switch (categoryNode.GetAttributeValue("class", ""))
                 {
@@ -106,28 +108,42 @@ namespace OpenMensa_Bayreuth
                     case "tx-bwrkspeiseplan__salatsuppen":
                         categoryName = "Snacks, Salate";
                         break;
-                    default: continue;
+                    default: return;
                 }
 
                 // Speisen (= Zeilen)
-                List<Meal> meals = new();
-                foreach (var row in categoryNode.SelectNodes("./table/tbody/tr"))
-                {
+                var meals = new List<Meal>();
+
+                SelectAndExecuteIfPossible(categoryNode, "./table/tbody/tr", row => {
                     var cols = row.SelectNodes("./td").ToArray();
                     var name = cols[0].GetDirectInnerText().Trim();
 
-                    Price[] prices = new Price[] {
-                        GetPriceFromTableCell(cols[1], Price.Roles.STUDENT),
-                        GetPriceFromTableCell(cols[1], Price.Roles.EMPLOYEE),
-                        GetPriceFromTableCell(cols[1], Price.Roles.OTHER), };
+                    var prices = new List<Price>();
+                    foreach (var role in new Price.Roles[] { Price.Roles.STUDENT, Price.Roles.EMPLOYEE, Price.Roles.OTHER })
+                    {
+                        try
+                        {
+                            prices.Add(GetPriceFromTableCell(cols[1], role));
+                        }
+                        catch (Exception) { }
+                    }
 
-                    meals.Add(new Meal(name, prices));
-                }
+                    meals.Add(new Meal(name, prices.ToArray()));
+                });
 
                 categories.Add(new Category(categoryName, meals.ToArray()));
-            }
+            });
 
             return new Day(day, categories.ToArray());
+        }
+
+        private static void SelectAndExecuteIfPossible(HtmlNode node, string xpath, Action<HtmlNode> action)
+        {
+            var result = node.SelectNodes(xpath);
+            if (result == null || result.Count == 0)
+                return;
+            foreach (var child in result)
+                action(child);
         }
     }
 }

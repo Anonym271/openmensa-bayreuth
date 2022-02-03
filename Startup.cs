@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace OpenMensa_Bayreuth
 {
@@ -28,6 +30,14 @@ namespace OpenMensa_Bayreuth
         {
 
             services.AddControllers()
+                .AddMvcOptions(options =>
+                {
+                    options.Filters.Add(new ProducesAttribute("application/rss+xml"));
+                    options.OutputFormatters.Add(new XmlSerializerOutputFormatter(new XmlWriterSettings
+                    {
+                        OmitXmlDeclaration = false
+                    }));
+                })
                 .AddXmlSerializerFormatters();
             services.AddSwaggerGen(c =>
             {
