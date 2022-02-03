@@ -1,0 +1,1 @@
+# openmensa-bayreuth
