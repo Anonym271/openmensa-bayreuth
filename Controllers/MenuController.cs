@@ -32,13 +32,35 @@ namespace OpenMensa_Bayreuth.Controllers
         [HttpGet("{mensaType}")]
         public async Task<OpenMensa> GetAll(string mensaType)
         {
-            return new OpenMensa(await MenuParser.GetCanteenWeeks(ParseMensaType(mensaType), DateTime.Now, 3));
+            try
+            {
+                return new OpenMensa(await MenuParser.GetCanteenWeeks(ParseMensaType(mensaType), DateTime.Now, 3));
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception exc)
+            {
+                throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
+            }
         }
 
         [HttpGet("{mensaType}/today")]
         public async Task<OpenMensa> GetToday(string mensaType)
         {
-            return new OpenMensa(await MenuParser.GetCanteenToday(ParseMensaType(mensaType)));
+            try
+            {
+                return new OpenMensa(await MenuParser.GetCanteenToday(ParseMensaType(mensaType)));
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception exc)
+            {
+                throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
+            }
         }
     }
 }
