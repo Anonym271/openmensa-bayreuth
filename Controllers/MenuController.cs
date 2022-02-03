@@ -34,14 +34,18 @@ namespace OpenMensa_Bayreuth.Controllers
         {
             try
             {
-                return new OpenMensa(await MenuParser.GetCanteenWeeks(ParseMensaType(mensaType), DateTime.Now, 3));
+                var res = new OpenMensa(await MenuParser.GetCanteenWeeks(ParseMensaType(mensaType), DateTime.Now, 3));
+                _logger.LogInformation("Successfully parsed complete menu from mensa '{mensaType}'", mensaType);
+                return res;
             }
-            catch (ArgumentException)
+            catch (ArgumentException exc)
             {
+                _logger.LogError(exc, "Error while parsing all information from requested mensa '{mensaType}'", mensaType);
                 throw;
             }
             catch (Exception exc)
             {
+                _logger.LogError(exc, "Error parsing all information from requested mensa '{mensaType}'", mensaType);
                 throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
             }
         }
@@ -51,14 +55,18 @@ namespace OpenMensa_Bayreuth.Controllers
         {
             try
             {
-                return new OpenMensa(await MenuParser.GetCanteenToday(ParseMensaType(mensaType)));
+                var res = new OpenMensa(await MenuParser.GetCanteenToday(ParseMensaType(mensaType)));
+                _logger.LogInformation("Successfully parsed today's menu from mensa '{mensaType}'", mensaType);
+                return res;
             }
-            catch (ArgumentException)
+            catch (ArgumentException exc)
             {
+                _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
                 throw;
             }
             catch (Exception exc)
             {
+                _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
                 throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
             }
         }
