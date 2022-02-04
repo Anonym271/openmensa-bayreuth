@@ -36,6 +36,8 @@ namespace OpenMensa_Bayreuth
         public Canteen(Day[] days) => this.days = days;
     }
 
+    public class Closed { }
+
     public class Day
     {
         [XmlAttribute]
@@ -44,11 +46,15 @@ namespace OpenMensa_Bayreuth
         [XmlElement(ElementName = "category")]
         public Category[] categories;
 
+        public Closed closed = null;
+
         public Day() {}
         public Day(DateTime date, Category[] categories)
         {
             this.date = date.ToString("yyyy-MM-dd");
             this.categories = categories;
+            if (categories == null || categories.Length == 0)
+                closed = new Closed();
         }
     }
 
