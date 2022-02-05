@@ -65,6 +65,8 @@ namespace OpenMensa_Bayreuth
             {
                 endpoints.MapControllers();
             });
+
+            _ = MenuGrabber.Instance;
         }
     }
 }

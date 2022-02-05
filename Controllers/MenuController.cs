@@ -71,25 +71,25 @@ namespace OpenMensa_Bayreuth.Controllers
             }
         }
 
-        [HttpGet("{mensaType}/day/{day}")]
-        public async Task<OpenMensa> GetDay(string mensaType, DateTime day)
-        {
-            try
-            {
-                var res = new OpenMensa(await MenuParser.GetCanteenDay(ParseMensaType(mensaType), day));
-                _logger.LogInformation("Successfully parsed today's menu from mensa '{mensaType}'", mensaType);
-                return res;
-            }
-            catch (ArgumentException exc)
-            {
-                _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
-                throw;
-            }
-            catch (Exception exc)
-            {
-                _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
-                throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
-            }
-        }
+        //[HttpGet("{mensaType}/day/{day}")]
+        //public async Task<OpenMensa> GetDay(string mensaType, DateTime day)
+        //{
+        //    try
+        //    {
+        //        var res = new OpenMensa(await MenuParser.GetCanteenDay(ParseMensaType(mensaType), day));
+        //        _logger.LogInformation("Successfully parsed today's menu from mensa '{mensaType}'", mensaType);
+        //        return res;
+        //    }
+        //    catch (ArgumentException exc)
+        //    {
+        //        _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
+        //        throw;
+        //    }
+        //    catch (Exception exc)
+        //    {
+        //        _logger.LogError(exc, "Error while parsing today's information from requested mensa '{mensaType}'", mensaType);
+        //        throw new InvalidDataException("An error occurred while parsing the requested information! See inner exception for details.", exc);
+        //    }
+        //}
     }
 }

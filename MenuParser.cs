@@ -29,30 +29,43 @@ namespace OpenMensa_Bayreuth
             return new Price(role, value);
         }
 
-        public static async Task<Canteen> GetCanteenDay(MensaType mensa, DateTime day)
+        //public static async Task<Canteen> GetCanteenDay(MensaType mensa, DateTime day)
+        //{
+        //    return new Canteen(new Day[] { await GetToday(mensa, day) });
+        //}
+        public static async Task<Canteen> GetCanteenToday(MensaType mensa) //=> await GetCanteenDay(mensa, DateTime.Now);
         {
-            return new Canteen(new Day[] { await GetDay(mensa, day) });
+            var html = MenuGrabber.Instance.GetToday(mensa);
+            return new Canteen(new Day[] { await GetDay(html, DateTime.Now) });
         }
-        public static async Task<Canteen> GetCanteenToday(MensaType mensa) => await GetCanteenDay(mensa, DateTime.Now);
 
         public static async Task<Canteen> GetCanteenThisWeek(MensaType mensa)
         {
-            return new Canteen(await GetWeek(mensa, DateTime.Now));
+            return new Canteen(await GetWeek(MenuGrabber.Instance.GetWeekly(mensa)[0]));
         }
 
         public static async Task<Canteen> GetCanteenWeeks(MensaType mensa, DateTime startDate, int weekCount)
         {
-            List<Day> days = new();
-            for (int i = 0; i < weekCount; i++)
-                days.AddRange(await GetWeek(mensa, startDate.AddDays(i * 7)));
+            //List<Day> days = new();
+            //for (int i = 0; i < weekCount; i++)
+            //    days.AddRange(await GetWeek(mensa, startDate.AddDays(i * 7)));
+            //return new Canteen(days.ToArray());
+            var weekHtmls = MenuGrabber.Instance.GetWeekly(mensa);
+            var tasks = new Task<Day[]>[3];
+            for (int i = 0; i < 3; i++)
+                tasks[i] = GetWeek(weekHtmls[i]);
+            var days = new List<Day>();
+            foreach (var t in tasks)
+                days.AddRange(await t);
             return new Canteen(days.ToArray());
         }
 
-        public static async Task<Day> GetDay(MensaType mensa, DateTime day)
+        //public static async Task<Day> GetToday(MensaType mensa, DateTime day)
+        public static async Task<Day> GetDay(HtmlDocument dayHtml, DateTime day)
         {
-            var html = await MenuGrabber.Get(mensa, day, false);
-            var lunchNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__hauptgerichte']");
-            var dinnerNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__abendkarte']");
+            //var html = await MenuGrabber.Get(mensa, day, false);
+            var lunchNode = dayHtml.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__hauptgerichte']");
+            var dinnerNode = dayHtml.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__abendkarte']");
             var categories = new List<Category>();
             if (lunchNode != null)
                 categories.AddRange(ParseDayTable(lunchNode));
@@ -61,12 +74,13 @@ namespace OpenMensa_Bayreuth
             return new Day(day, categories.ToArray());
         }
 
-        public static async Task<Day[]> GetWeek(MensaType mensa, DateTime week)
+        //public static async Task<Day[]> GetWeek(MensaType mensa, DateTime week)
+        public static async Task<Day[]> GetWeek(HtmlDocument weekHtml)
         {
-            var html = await MenuGrabber.Get(mensa, week, true);
+           // var weekHtml = await MenuGrabber.Get(mensa, week, true);
             List<Day> days = new();
 
-            SelectAndExecuteIfPossible(html.DocumentNode, "//div[@class='tx-bwrkspeiseplan__bar tx-bwrkspeiseplan__hauptgerichte']", dayNode => {
+            SelectAndExecuteIfPossible(weekHtml.DocumentNode, "//div[@class='tx-bwrkspeiseplan__bar tx-bwrkspeiseplan__hauptgerichte']", dayNode => {
                 DateTime? date = null;
                 var dateCandidates = dayNode.SelectNodes(".//a[contains(@href, 'essen/speiseplaene/bayreuth/')]");
                 if (dateCandidates == null || dateCandidates.Count == 0)
