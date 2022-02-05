@@ -29,10 +29,11 @@ namespace OpenMensa_Bayreuth
             return new Price(role, value);
         }
 
-        public static async Task<Canteen> GetCanteenToday(MensaType mensa)
+        public static async Task<Canteen> GetCanteenDay(MensaType mensa, DateTime day)
         {
-            return new Canteen(new Day[] { await GetDay(mensa, DateTime.Now) });
+            return new Canteen(new Day[] { await GetDay(mensa, day) });
         }
+        public static async Task<Canteen> GetCanteenToday(MensaType mensa) => await GetCanteenDay(mensa, DateTime.Now);
 
         public static async Task<Canteen> GetCanteenThisWeek(MensaType mensa)
         {
@@ -50,10 +51,14 @@ namespace OpenMensa_Bayreuth
         public static async Task<Day> GetDay(MensaType mensa, DateTime day)
         {
             var html = await MenuGrabber.Get(mensa, day, false);
-            var dayNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__hauptgerichte']");
-            if (dayNode == null)
-                return null;
-            return ParseDayTable(day, dayNode);
+            var lunchNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__hauptgerichte']");
+            var dinnerNode = html.DocumentNode.SelectSingleNode("//div[@class='tx-bwrkspeiseplan__abendkarte']");
+            var categories = new List<Category>();
+            if (lunchNode != null)
+                categories.AddRange(ParseDayTable(lunchNode));
+            if (dinnerNode != null)
+                categories.AddRange(ParseDayTable(dinnerNode));
+            return new Day(day, categories.ToArray());
         }
 
         public static async Task<Day[]> GetWeek(MensaType mensa, DateTime week)
@@ -78,20 +83,16 @@ namespace OpenMensa_Bayreuth
                 }
                 if (date == null)
                     return;
-                var day = ParseDayTable((DateTime)date, dayNode);
-                if (day != null)
-                    days.Add(day);
+                days.Add(new Day((DateTime)date, ParseDayTable(dayNode).ToArray()));
             });
-
 
             return days.ToArray();
         }
 
-        private static Day ParseDayTable(DateTime day, HtmlNode dayNode)
+        private static List<Category> ParseDayTable(HtmlNode dayNode)
         {
             // Categories (Hauptgerichte, Beilagen, ...)
             List<Category> categories = new();
-            var nodes = dayNode.SelectNodes("./div/div/div");
             SelectAndExecuteIfPossible(dayNode, "./div/div/div", categoryNode => {
                 string categoryName;
                 switch (categoryNode.GetAttributeValue("class", ""))
@@ -107,6 +108,9 @@ namespace OpenMensa_Bayreuth
                         break;
                     case "tx-bwrkspeiseplan__salatsuppen":
                         categoryName = "Snacks, Salate (€/1kg)";
+                        break;
+                    case "tx-bwrkspeiseplan__abendkarte":
+                        categoryName = "Abendkarte (ab 16:00)";
                         break;
                     default: return;
                 }
@@ -134,7 +138,8 @@ namespace OpenMensa_Bayreuth
                 categories.Add(new Category(categoryName, meals.ToArray()));
             });
 
-            return new Day(day, categories.ToArray());
+            return categories;
+            //return new Day(day, categories.ToArray());
         }
 
         private static void SelectAndExecuteIfPossible(HtmlNode node, string xpath, Action<HtmlNode> action)
