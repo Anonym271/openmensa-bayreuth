@@ -106,7 +106,7 @@ namespace OpenMensa_Bayreuth
                         categoryName = "Desserts";
                         break;
                     case "tx-bwrkspeiseplan__salatsuppen":
-                        categoryName = "Snacks, Salate";
+                        categoryName = "Snacks, Salate (€/1kg)";
                         break;
                     default: return;
                 }
