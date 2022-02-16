@@ -46,10 +46,6 @@ namespace OpenMensa_Bayreuth
 
         public static async Task<Canteen> GetCanteenWeeks(MensaType mensa, DateTime startDate, int weekCount)
         {
-            //List<Day> days = new();
-            //for (int i = 0; i < weekCount; i++)
-            //    days.AddRange(await GetWeek(mensa, startDate.AddDays(i * 7)));
-            //return new Canteen(days.ToArray());
             var weekHtmls = MenuGrabber.Instance.GetWeekly(mensa);
             var tasks = new Task<Day[]>[3];
             for (int i = 0; i < 3; i++)
@@ -60,7 +56,6 @@ namespace OpenMensa_Bayreuth
             return new Canteen(days.ToArray());
         }
 
-        //public static async Task<Day> GetToday(MensaType mensa, DateTime day)
         public static async Task<Day> GetDay(HtmlDocument dayHtml, DateTime day)
         {
             //var html = await MenuGrabber.Get(mensa, day, false);

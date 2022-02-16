@@ -47,8 +47,8 @@ namespace OpenMensa_Bayreuth
                 _weeklyDocF[i] = new();
                 _weeklyDocH[i] = new();
             }
-            _hourlyScheduler = new(this.Update, null, 0, 60 * 60 * 1000); // execute every hour
             _lastWeeklyReceived = DateTime.MinValue;
+            _hourlyScheduler = new(this.Update, null, 0, 60 * 60 * 1000); // execute every hour
         }
 
         private async void Update(Object junk)
@@ -57,7 +57,7 @@ namespace OpenMensa_Bayreuth
 
             var now = DateTime.Now;
             if (_lastWeeklyReceived.Day != now.Day // not checked today
-                && now.Hour >= 5) // past 5:00 
+                && now.Hour >= 2) // past 5:00 
             {
                 await UpdateWeekly();
                 _lastWeeklyReceived = now;
@@ -82,8 +82,8 @@ namespace OpenMensa_Bayreuth
             var now = DateTime.Now;
             for (int i = 0; i < 3; i++)
             {
-                tasksH[i] = Get(MensaType.HAUPTMENSA, now.AddDays(i), true);
-                tasksF[i] = Get(MensaType.FRISCHRAUM, now.AddDays(i), true);
+                tasksH[i] = Get(MensaType.HAUPTMENSA, now.AddDays(i * 7), true);
+                tasksF[i] = Get(MensaType.FRISCHRAUM, now.AddDays(i * 7), true);
             }
 
             var newH = new HtmlDocument[3];
