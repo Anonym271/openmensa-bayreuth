@@ -6,7 +6,10 @@ from pyopenmensa import feed
 import json
 from pathlib import Path
 import zipfile
+import logging as log
 
+
+# log = logging.getLogger()
 
 
 JSON_DIR = Path('plans/')
@@ -28,7 +31,6 @@ price_types = {
 
 
 
-
 def get_week_url(day_within_week: date, mensa_type='hauptmensa'):
     return f'https://www.studentenwerk-oberfranken.de/essen/speiseplaene/bayreuth/{mensa_type}/woche/{day_within_week}.html'
 
@@ -36,6 +38,7 @@ def get_day_url(day: date, mensa_type='hauptmensa'):
     return f'https://www.studentenwerk-oberfranken.de/essen/speiseplaene/bayreuth/{mensa_type}/{day}.html'
 
 def get_bs(url, timeout=60):
+    log.info('Requesting %s', url)
     return BeautifulSoup(requests.get(url, timeout=timeout).content)
 
 
@@ -51,16 +54,20 @@ def is_plan(tag):
 
 def parse_plan(plan: BeautifulSoup, day: date):
     """Parse a day's plan (`<div class="tx-bwrkspeiseplan__hauptgerichte">`)"""
+    log.info('Parsing plan for day %s', day)
     meals = []
     for meal_tag, meal_type in meal_types.items():
         meal_table = plan.find('div', attrs=cls(meal_tag))
         if meal_table is None:
             # No meals of this type today
+            log.debug('Could not find meal tag %s (%s)', meal_tag, meal_type)
             continue
+        log.debug('Parsing meals for tag %s (%s)', meal_tag, meal_type)
         meal_table = meal_table.find('table', attrs=cls('tx-bwrkspeiseplan__table-meals'))
         meal_table = meal_table.find('tbody')
         meal_rows = meal_table.findChildren('tr')
-        for meal_row in meal_rows:
+        for i_row, meal_row in enumerate(meal_rows):
+            log.debug('Parsing row %d of %s', i_row, meal_tag)
             cols = meal_row.findChildren('td', recursive=False)
             assert len(cols) == 3
             c_name, c_price, c_icons = cols
@@ -91,6 +98,7 @@ def parse_plan(plan: BeautifulSoup, day: date):
 
 
 def parse_week(day_within_week: date, mensa_type='hauptmensa'):
+    log.info('Beginning to parse week %s of mensa %s', day_within_week, mensa_type)
     bs = get_bs(get_week_url(day_within_week, mensa_type))
     plan_week = bs.find('div', attrs={'class': 'tx-bwrkspeiseplan-woche'})
     bs_headlines = plan_week.findAll('h3', attrs={'class': 'tx-bwrkspeiseplan__dayHeadline'}, recursive=False)
@@ -104,6 +112,7 @@ def parse_week(day_within_week: date, mensa_type='hauptmensa'):
 
 
 def parse_day(day: date, mensa_type='hauptmensa'):
+    log.info('Beginning to parse day %s of mensa %s', day, mensa_type)
     bs = get_bs(get_day_url(day, mensa_type))
     day_plan = bs.find('div', attrs=cls('tx-bwrkspeiseplan-tag'))
     plan = day_plan.find(is_plan)
@@ -113,6 +122,9 @@ def parse_day(day: date, mensa_type='hauptmensa'):
 
 
 def archive_old_jsons():
+    """Scan plans directory for old plans. Plans from the current and last month are kept, 
+    all other plans are archived into one zip file per month."""
+    log.debug('Archiving old plans')
     if not JSON_DIR.exists():
         return
     today = date.today()
@@ -130,13 +142,17 @@ def archive_old_jsons():
     for month, files in months_collected.items():
         zipfn = Path(f'{month}.zip')
         if zipfn.exists():
-            print('WARNING: archive file', zipfn, 'does already exist')
+            log.warn('Archive file %s does already exist', zipfn)
             i = 2
             while zipfn.exists():
                 zipfn = Path(f'{month}_{i}.zip')
+                i += 1
+        log.info('Archiving %d plans of month %s into archive %s', len(files), month, zipfn)
         with zipfile.ZipFile(zipfn, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             for fn in files:
+                log.debug('Packing %s into %s', fn, zipfn)
                 zf.write(fn)
+                log.debug('Deleting %s', fn)
                 fn.unlink()
 
 
@@ -152,10 +168,11 @@ def DeserializeDate(o):
 
 
 def save_plan(day: date, plan: list[dict], indent=None, archive_old=True):
+    json_fn = JSON_DIR / f'{day}.json'
+    log.info('Saving plan %s into %s', day, json_fn)
     JSON_DIR.mkdir(exist_ok=True, parents=True)
-    with open(JSON_DIR / f'{day}.json', 'w') as fout:
+    with open(json_fn, 'w') as fout:
         json.dump(plan, fout, indent=indent, cls=PlanSerializer)
-        
     if archive_old:
         archive_old_jsons()
 
@@ -164,6 +181,7 @@ def save_plan(day: date, plan: list[dict], indent=None, archive_old=True):
 
 
 if __name__ == '__main__':
+    log.getLogger().setLevel(log.DEBUG)
     week = parse_week(date.today())
     for day, plan in week.items():
         save_plan(day, plan, indent=4)
