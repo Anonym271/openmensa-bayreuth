@@ -3,3 +3,6 @@
 __pycache__/
 *.log
 plans/
+plans_old/
+tmp/
+temp/
