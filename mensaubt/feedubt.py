@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 from pyopenmensa import feed as omfeed
 
-import parserubt as parser
+from . import parserubt as parser
 
 
 
@@ -35,7 +35,6 @@ class UbtFeedBuilder(omfeed.LazyBuilder):
             try:
                 category = meal_category_names[meal.category]
                 prices = filter_prices(meal.prices)
-                print(meal)
                 self.addMeal(meal.day, category, meal.name, meal.notes, prices)
             except Exception as err:
                 log.error('Failed to add meal "%s": %s: %s', meal.name, type(err).__name__, err)
@@ -60,13 +59,10 @@ def get_feed_range(start_day: date, end_day: date, mensa_type: str):
     d = timedelta(days=1)
     day = start_day
     while day < end_day:
-        # if day.weekday() == 6: # Sunday
-        #     feed.setDayClosed(day)
-        # else:
-        #     feed.addPlan(parser.get_day(day, mensa_type))
         try:
             feed.addPlan(parser.get_day(day, mensa_type))
         except parser.PlanNotFoundError:
             log.warning('Could not find plan %s for mensa %s. Assuming it is closed today.', day, mensa_type)
             feed.setDayClosed(day)
         day = day + d
+    return feed

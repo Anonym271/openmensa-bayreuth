@@ -30,6 +30,15 @@ price_types = {
     'preis_typ4': 'special', # Not in official OpenMensaFeed
 }
 
+known_canteens = [
+    'hauptmensa',
+    'frischraum',
+    'gsp',
+    'medizin-campus',
+    'mensa-fan',
+    'nuernberger-strasse',
+]
+
 
 
 class PlanSerializer(json.JSONEncoder):
@@ -167,22 +176,17 @@ def parse_plan(plan: BeautifulSoup, day: date, mensa_type: str):
             prices = feed.buildPrices(prices)
             icons = [icon_img.attrs['src'] for icon_img in c_icons.findChildren('img')]
             icons += [' '.join(icon_icon.attrs['class']) for icon_icon in c_icons.findChildren('i', attrs=cls('icon'))]
-            # meal = {
-            #     'name': meal_name,
-            #     'category': meal_type,
-            #     'date': day,
-            #     'notes': notes,
-            #     'prices': prices,
-            #     'icons': icons,
-            # }
-            # meals.append(meal)
             meals.append(Meal(meal_name, meal_type, day, notes, prices, icons))
     return Plan(day, mensa_type, meals)
 
 
 def parse_week(day_within_week: date, mensa_type='hauptmensa'):
     log.info('Beginning to parse week %s of mensa %s', day_within_week, mensa_type)
-    bs = get_bs(get_week_url(day_within_week, mensa_type))
+    try:
+        bs = get_bs(get_week_url(day_within_week, mensa_type))
+    except PlanNotFoundError:
+        log.error('Failed to fetch plan for week %s of mensa %s, returning empty plan', day_within_week, mensa_type)
+        return {}
     plan_week = bs.find('div', attrs={'class': 'tx-bwrkspeiseplan-woche'})
     bs_headlines = plan_week.findAll('h3', attrs={'class': 'tx-bwrkspeiseplan__dayHeadline'}, recursive=False)
     bs_plans = plan_week.findAll('div', attrs={'class': 'tx-bwrkspeiseplan__hauptgerichte'}, recursive=False)
@@ -196,13 +200,16 @@ def parse_week(day_within_week: date, mensa_type='hauptmensa'):
 
 def parse_day(day: date, mensa_type='hauptmensa') -> Plan:
     log.info('Beginning to parse day %s of mensa %s', day, mensa_type)
-    bs = get_bs(get_day_url(day, mensa_type))
+    try:
+        bs = get_bs(get_day_url(day, mensa_type))
+    except PlanNotFoundError:
+        log.warning('Could not find plan %s for mensa %s. Assuming it is closed today.', day, mensa_type)
+        return Plan(day, mensa_type, [])
     day_plan = bs.find('div', attrs=cls('tx-bwrkspeiseplan-tag'))
     plan = day_plan.find(is_plan)
     if plan is None:
         return Plan(day, mensa_type, [])
     return parse_plan(plan, day, mensa_type)
-
 
 
 
@@ -241,7 +248,6 @@ def archive_old_jsons():
                 fn.unlink()
 
 
-
 def get_day(day: date, mensa_type='hauptmensa', use_cache=True):
     if use_cache:
         try:
@@ -250,5 +256,21 @@ def get_day(day: date, mensa_type='hauptmensa', use_cache=True):
             log.info('Plan %s not found in cache, downloading current version', 
                      Plan.get_filename(day, mensa_type).name)
     plan = parse_day(day, mensa_type)
-    plan.save(indent=JSON_INDENT)
+    plan.save()
     return plan
+
+
+
+def fetch_day(day: date, mensa_type: str):
+    """Fetch and cache this day but do not return it"""
+    log.debug('Fetching day %s of %s', day, mensa_type)
+    plan = parse_day(day, mensa_type)
+    plan.save()
+
+
+def fetch_week(day_within_week: date, mensa_type: str):
+    """Fetch and cache this day but do not return it"""
+    log.debug('Fetching week %s of %s', day_within_week, mensa_type)
+    week = parse_week(day_within_week, mensa_type)
+    for plan in week.values():
+        plan.save()
