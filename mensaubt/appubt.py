@@ -17,10 +17,13 @@ if 'BASE_URL' in os.environ:  # pragma: no cover
     base_url = urllib.parse.urlparse(os.environ.get('BASE_URL'))
     if base_url.scheme:
         app.config['PREFERRED_URL_SCHEME'] = base_url.scheme
+        log.debug('scheme = %s', base_url.scheme)
     if base_url.netloc:
         app.config['SERVER_NAME'] = base_url.netloc
+        log.debug('netloc = %s', base_url.netloc)
     if base_url.path:
         app.config['APPLICATION_ROOT'] = base_url.path
+        log.debug('path = %s', base_url.path)
 
 
 
