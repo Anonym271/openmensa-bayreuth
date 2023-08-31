@@ -1,16 +1,15 @@
-import logging as log
-from datetime import date, datetime
-from typing import Any
-from bs4 import BeautifulSoup
-import requests
-from pyopenmensa import feed
 import json
-from pathlib import Path
-import zipfile
-from dataclasses import dataclass, asdict
+import logging as log
 import re
+import zipfile
+from dataclasses import asdict, dataclass
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
 
-
+import requests
+from bs4 import BeautifulSoup
+from pyopenmensa import feed
 
 ARCHIVE_OLD_ENTRIES = False
 JSON_DIR = Path('plans/')
@@ -25,8 +24,8 @@ meal_types = {
 }
 
 price_types = {
-    'preis_typ1': 'students',
-    'preis_typ2': 'employees',
+    'preis_typ1': 'student',
+    'preis_typ2': 'employee',
     'preis_typ3': 'other',
     'preis_typ4': 'special', # Not in official OpenMensaFeed
 }
@@ -96,7 +95,7 @@ class Plan:
         if archive_old is None:
             archive_old = ARCHIVE_OLD_ENTRIES
         json_fn = self.filename
-        log.info('Saving plan %s into %s', day, json_fn)
+        log.info('Saving plan %s into %s', self.day, json_fn)
         json_fn.parent.mkdir(exist_ok=True, parents=True)
         with open(json_fn, 'w') as fout:
             json.dump(self, fout, indent=indent, cls=PlanSerializer)
@@ -110,9 +109,19 @@ def get_week_url(day_within_week: date, mensa_type='hauptmensa'):
 def get_day_url(day: date, mensa_type='hauptmensa'):
     return f'https://www.studentenwerk-oberfranken.de/essen/speiseplaene/bayreuth/{mensa_type}/{day}.html'
 
+class PlanNotFoundError(Exception):
+    """The requested day of this mensa could not be found. This usually inidicates 
+    that either the mensa does not exist or that it is closed on this day."""
+
 def get_bs(url, timeout=60):
     log.info('Requesting %s', url)
-    return BeautifulSoup(requests.get(url, timeout=timeout).content, features='lxml')
+    res = requests.get(url, timeout=timeout)
+    log.debug('Returned code %d', res.status_code)
+    if res.status_code == 404:
+        raise PlanNotFoundError()
+    if res.status_code != 200:
+        raise requests.HTTPError(response=res)
+    return BeautifulSoup(res.content, features='lxml')
 
 
 def cls(c):
@@ -190,6 +199,8 @@ def parse_day(day: date, mensa_type='hauptmensa') -> Plan:
     bs = get_bs(get_day_url(day, mensa_type))
     day_plan = bs.find('div', attrs=cls('tx-bwrkspeiseplan-tag'))
     plan = day_plan.find(is_plan)
+    if plan is None:
+        return Plan(day, mensa_type, [])
     return parse_plan(plan, day, mensa_type)
 
 
@@ -231,26 +242,6 @@ def archive_old_jsons():
 
 
 
-
-# def get_plan_filename(day: date, mensa_type: str):
-#     return JSON_DIR / f'{mensa_type}_{day}.json'
-
-
-# def save_plan(day: date, mensa_type: str, plan: list[dict], indent=None, archive_old=None):
-#     json_fn = get_plan_filename(day, mensa_type)
-#     log.info('Saving plan %s into %s', day, json_fn)
-#     JSON_DIR.mkdir(exist_ok=True, parents=True)
-#     with open(json_fn, 'w') as fout:
-#         json.dump(plan, fout, indent=indent, cls=PlanSerializer)
-#     if archive_old or (archive_old is None and ARCHIVE_OLD_ENTRIES):
-#         archive_old_jsons()
-
-# def load_plan(fn):
-#     with open(fn, 'r') as fin:
-#         return Plan.fromdict(json.load(fin, object_hook=DeserializeDate))
-    
-
-
 def get_day(day: date, mensa_type='hauptmensa', use_cache=True):
     if use_cache:
         try:
@@ -261,11 +252,3 @@ def get_day(day: date, mensa_type='hauptmensa', use_cache=True):
     plan = parse_day(day, mensa_type)
     plan.save(indent=JSON_INDENT)
     return plan
-
-
-
-if __name__ == '__main__':
-    log.getLogger().setLevel(log.DEBUG)
-    week = parse_week(date.today())
-    for day, plan in week.items():
-        plan.save()
